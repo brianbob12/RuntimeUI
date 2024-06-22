@@ -113,6 +113,11 @@ export const buildComponent = async ({
   sourceCode,
   name,
 }: BuildComponentInputType):Promise<string> => {
+  //! Source code preprocessing
+
+  //remove all exports
+  sourceCode = sourceCode.replace(/export\s+default\s+/g, "")
+
   const fileName = `${name}.tsx`
   fs.writeFileSync(
     `${sourceFolder}/${fileName}`,

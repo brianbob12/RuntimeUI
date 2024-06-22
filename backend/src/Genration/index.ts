@@ -1,0 +1,3 @@
+export {
+  generateComponent,
+} from "./generateComponent"

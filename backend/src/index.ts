@@ -1,7 +1,11 @@
+import dotEnvFlow from "dotenv-flow"
+dotEnvFlow.config()
+
 import express from 'express'
 import { renderAppToString } from './frontend/renderApp'
 import fs from 'fs'
 import { buildComponent } from './runtimeBuild'
+import { generateComponent } from "./Genration"
 
 const app = express()
 const port = 3000
@@ -76,8 +80,10 @@ const testStringNotAliased = `
 `
 
 app.get('/getCounter', async (req, res) => {
+  const prompt = "I want you to generate a counter component with a switch so it can count up or down. Make the buttons red."
+  const code = await generateComponent(prompt)
   const builtCounter = await buildComponent({
-    sourceCode: testStringNotAliased,
+    sourceCode: code,
     name: 'Counter',
   })
   res.status(200).send(builtCounter)

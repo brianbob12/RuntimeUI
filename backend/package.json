@@ -28,8 +28,10 @@
     "@types/babel__core": "^7.20.5",
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.3.0",
+    "dotenv-flow": "^4.1.0",
     "esbuild": "^0.21.3",
     "express": "^4.19.2",
+    "groq-sdk": "^0.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }
