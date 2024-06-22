@@ -1,0 +1,4 @@
+{
+  "entry": "frontend/client.tsx",
+  "outfile": "public/client.bundle.js"
+}
