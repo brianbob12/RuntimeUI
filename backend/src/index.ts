@@ -6,6 +6,7 @@ import { renderAppToString } from './frontend/renderApp'
 import fs from 'fs'
 import { buildComponent } from './runtimeBuild'
 import { generateComponent } from "./Genration"
+import { z } from "zod"
 
 const app = express()
 const port = 3000
@@ -29,64 +30,62 @@ app.get('/app', (req, res) => {
   res.send(html)
 })
 
-const testString = `
-  import { useState } from "react"
-  const components = require("./generativeComponents")
-  console.log(components)
-  const {
-    Button:Button97,
-    Switch:Switch97
-  } = components
+const getComponentQuery = z.object({
+  prompt: z.string(),
+  componentName: z.string(),
+  importFileName: z.string(),
+})
 
-  const Counter = () => {
-    const [count, setCount] = useState(0)
-    const [goingUp, setGoingUp] = useState(true)
 
-    return (
-      <div style={{ fontFamily: 'sans-serif', textAlign: 'center', backgroundColor: '#EEEEEE', padding: '1rem', borderRadius: '0.5rem' }}>
-        <span>You clicked {count} times</span>
-        <Button97 onClick={() => setCount(count + (goingUp ? 1 : -1))}>
-          Click me
-        </Button97>
-        <Switch97 checked={goingUp} onChange={(e) => setGoingUp(e.target.checked)} />
-      </div>
-    )
+const GENERATE_MODEL = "claude-3-5-sonnet-20240620"
+const GET_COMPONENTS_OPTIONS = 1
+
+app.get('/getComponent', async (req, res) => {
+  const { success, data, error } = getComponentQuery.safeParse(req.query)
+  if(!success){
+    res.status(400).send(error)
+    return
   }
-`
-
-const testStringNotAliased = `
-  import { useState } from "react"
-  const components = require("./generativeComponents")
-  console.log(components)
-  const {
-    Button,
-    Switch
-  } = components
-
-  const Counter = () => {
-    const [count, setCount] = useState(0)
-    const [goingUp, setGoingUp] = useState(true)
-
-    return (
-      <div style={{ fontFamily: 'sans-serif', textAlign: 'center', backgroundColor: '#EEEEEE', padding: '1rem', borderRadius: '0.5rem' }}>
-        <span>You clicked {count} times</span>
-        <Button onClick={() => setCount(count + (goingUp ? 1 : -1))}>
-          Click me
-        </Button>
-        <Switch checked={goingUp} onChange={(e) => setGoingUp(e.target.checked)} />
-      </div>
+  try{
+    const codeOptions = await generateComponent(
+      data.prompt,
+      data.componentName,
+      GENERATE_MODEL,
+      GET_COMPONENTS_OPTIONS,
     )
-  }
-`
+    const builtComponentPromises = codeOptions.map((code) => {
+      const builtComponentPromise = buildComponent({
+        sourceCode: code,
+        componentName: data.componentName,
+        importFileName: data.importFileName,
+      })
+      return builtComponentPromise
+    })
 
-app.get('/getCounter', async (req, res) => {
-  const prompt = "I want you to generate a counter component with a switch so it can count up or down. Make the buttons red."
-  const code = await generateComponent(prompt)
-  const builtCounter = await buildComponent({
-    sourceCode: code,
-    name: 'Counter',
-  })
-  res.status(200).send(builtCounter)
+    const builtComponents = []
+    for(const builtComponentPromise of builtComponentPromises){
+      try{
+        const builtComponent = await builtComponentPromise
+        builtComponents.push(builtComponent)
+      }
+      catch(e){
+        console.error("Failed to build component")
+        console.error(e)
+      }
+    }
+    console.log(`Successfully built ${builtComponents.length}/${codeOptions.length} components`)
+    if(builtComponents.length === 0){
+      res.status(500).send("Failed to build component")
+      return
+    }
+
+    res.status(200).send(builtComponents[0])
+  }
+  catch(e){
+    console.error(e)
+    res.status(500)
+    return
+  }
 })
 
 app.listen(port, () => {

@@ -1,34 +1,89 @@
 import groq from './Groq'
+import anthropic from './Anthropic'
 
-const testStringNotAliased = `
-  import { useState } from "react"
-  const components = require("./generativeComponents")
-  console.log(components)
-  const {
-    Button,
-    Switch
-  } = components
-
-  const Counter = () => {
-    const [count, setCount] = useState(0)
-    const [goingUp, setGoingUp] = useState(true)
-
-    return (
-      <div style={{ fontFamily: 'sans-serif', textAlign: 'center', backgroundColor: '#EEEEEE', padding: '1rem', borderRadius: '0.5rem' }}>
-        <span>You clicked {count} times</span>
-        <Button onClick={() => setCount(count + (goingUp ? 1 : -1))}>
-          Click me
-        </Button>
-        <Switch checked={goingUp} onChange={(e) => setGoingUp(e.target.checked)} />
-      </div>
-    )
+const generateGroqResponse = async (
+  prompt: string,
+  model: string = "llama3-8b-8192",
+  n: number = 1
+): Promise<string[]> => {
+  const completionPromises = []
+  for (let i = 0; i < n; i++) {
+    const completionPromise = groq.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      model: model,
+      n: 1,
+    })
+    completionPromises.push(completionPromise)
   }
-`
+
+  const completions = await Promise.all(completionPromises)
+
+  const out: string[] = []
+  for(const completion of completions){
+    const content = completion.choices[0].message.content
+    if(content){
+      out.push(content)
+    }
+  }
+  return out
+}
+
+const generateAnthropicResponse = async (
+  prompt: string,
+  model: string,
+  n: number = 1
+): Promise<string[]> => {
+  const completionPromises = []
+  for (let i = 0; i < n; i++) {
+    const completionPromise = anthropic.messages.create({
+      model,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: 1024,
+    })
+    completionPromises.push(completionPromise)
+  }
+
+  const completions = await Promise.all(completionPromises)
+  const out: string[] = []
+  for(const completion of completions){
+    for (const content of completion.content) {
+      if(content.type !== "text"){
+        continue
+      }
+      out.push(content.text)
+    }
+  }
+  return out
+}
+
+const modelsMap: {
+  [key: string]: (
+    prompt: string,
+    model: string,
+    n: number
+  ) => Promise<string[]>
+} = {
+  "llama3-8b-8192": generateGroqResponse,
+  "claude-3-5-sonnet-20240620": generateAnthropicResponse,
+}
 
 export const generateComponent = async (
   prompt: string,
-  model: string = "llama3-8b-8192"
-): Promise<string> => {
+  componentName: string,
+  model: string = "llama3-8b-8192",
+  options: number = 4
+): Promise<string[]> => {
+  console.log(`Generating ${options} components`)
   const userMessage = `
   I'd like you to generate a typescript React component for me. 
   Here's what it should do:
@@ -38,7 +93,9 @@ export const generateComponent = async (
   These are Material UI Components. Copy the starter code and add your additions
   by the "YOUR CODE HERE" comment. Do not add any other imports or require statements.
 
-  Use CSS in the TSX tags
+  Use CSS in the TSX tags. Use flex for layout.
+
+  The final component must be called ${componentName}.
 
   Here's the starter code:
   \`\`\`typescript
@@ -50,31 +107,36 @@ export const generateComponent = async (
     Switch
   } = components
 
-  const Counter = () => {
+  const ${componentName} = () => {
     // YOUR CODE HERE
   }
     \`\`\`
   `
 
-  const completion = await groq.chat.completions.create({
-    messages: [
-      {
-        role: "user",
-        content: userMessage
+  const modelFunction = modelsMap[model]
+  if(!modelFunction) {
+    throw new Error(`Model ${model} not found`)
+  }
+  const completions = await modelFunction(userMessage, model, options)
+
+  const preparedOptions: string[] = []
+  for(const codeOption of completions){
+    try {
+      const extractedCode = codeOption?.split("```typescript")[1].split("```")[0]
+      if(!extractedCode) {
+        console.error("Could not extract code")
+        continue
       }
-    ],
-    model: model,
-  })
-  const returnedContent = completion.choices[0].message.content
-  console.log(returnedContent)
-
-  const extractedCode = returnedContent?.split("```typescript")[1].split("```")[0]
-  console.log("Extracted code")
-  console.log(extractedCode)
-
-  if(!extractedCode) {
-    throw new Error("Could not extract code")
+      console.log("Extracted code")
+      console.log(extractedCode)
+      preparedOptions.push(extractedCode)
+    }
+    catch(e) {
+      console.error("Could not extract code")
+      console.log(codeOption)
+      continue
+    }
   }
 
-  return extractedCode
+  return preparedOptions
 }

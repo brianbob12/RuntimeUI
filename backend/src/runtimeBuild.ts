@@ -16,7 +16,8 @@ type BuildComponentInputTypeOld = {
 
 type BuildComponentInputType = {
   sourceCode: string
-  name: string
+  componentName: string
+  importFileName: string
 }
 
 const mockExportObject = (imported: ImportDescription):string => 
@@ -111,21 +112,22 @@ const generativeComponentsReplacement = "(init_generativeComponents(), __toCommo
 
 export const buildComponent = async ({
   sourceCode,
-  name,
+  componentName,
+  importFileName
 }: BuildComponentInputType):Promise<string> => {
   //! Source code preprocessing
 
   //remove all exports
   sourceCode = sourceCode.replace(/export\s+default\s+/g, "")
 
-  const fileName = `${name}.tsx`
+  const fileName = `${importFileName}.tsx`
   fs.writeFileSync(
     `${sourceFolder}/${fileName}`,
     sourceCode
   )
 
   const randomString = Math.random().toString(36).substring(2, 15)
-  const buildFileName = `gen_${randomString}_${name}.cjs`
+  const buildFileName = `gen_${randomString}_${importFileName}.cjs`
 
   const buildResult = await esbuild.build({
     entryPoints: [`${sourceFolder}/${fileName}`],
@@ -152,7 +154,7 @@ export const buildComponent = async ({
   
   cjsString = cjsString.replace(requireGenerativeComponentsRegex, generativeComponentsReplacement)
 
-  cjsString += `\n${name}_default = ${name};\n`
+  cjsString += `\n${importFileName}_default = ${componentName};\n`
     
   return cjsString
 }

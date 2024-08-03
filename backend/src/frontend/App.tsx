@@ -1,39 +1,73 @@
 import React, { useEffect } from "react"
 import { useState } from "react"
-import TagList from "./TagList"
-import Counter, { loadCounter } from "./Counter"
-import { Button } from "@mui/material"
+import { Button } from "@mui/base"
+import {
+  QueryClient,
+  QueryClientProvider
+} from "@tanstack/react-query"
+import GeneratedComponent from "./GeneratedComponent"
+
+const defaultPrompt = "A counter that counts up or down based on a button click. A switch should allow the user to choose between increasing or decreasing the counter."
+
+const hotReload = false
+
+const queryClient = new QueryClient()
 
 const App: React.FC = () => {
 
-  const [tagListOpen, setTagListOpen] = useState(false)
+  const [promptInput, setPromptInput] = useState(defaultPrompt)
+  const [livePrompt, setLivePrompt] = useState(defaultPrompt)
+  const [componentIndex, setComponentIndex] = useState(0)
 
-  const [counterLoaded, setCounterLoaded] = useState(false)
-  
   useEffect(() => {
-    if(!counterLoaded) {
-      loadCounter().then(() => setCounterLoaded(true))
+    if(hotReload) {
+      setLivePrompt(promptInput)
     }
-  }, [counterLoaded])
-
+  }, [promptInput])
+  
   return (
-    <div>
-      <h1>Hello World</h1>
-
+    <QueryClientProvider client={queryClient}>
       <div
         style = {{
-          backgroundColor: "#AAAAAA",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {counterLoaded && <Counter />}
-        {!counterLoaded && <p>Loading...</p>}
+        <h1>Generated Component</h1>
+        <div>
+          <textarea
+            value={promptInput}
+            onChange={(e) => setPromptInput(e.target.value)}
+          />
+          <Button
+            onClick={() => {
+              setLivePrompt(promptInput)
+              setComponentIndex(componentIndex + 1)
+            }}
+          >
+            {hotReload? "Regenerate" : "Generate"}
+          </Button>
+        </div>
+        <div
+          style = {{
+            border: "1px solid gray",
+            padding: "4rem",
+            borderRadius: "1rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <GeneratedComponent
+            prompt={livePrompt}
+            index={componentIndex}
+          />
+        </div>
       </div>
-
-      <Button onClick={() => setTagListOpen(!tagListOpen)}>
-        {tagListOpen ? "Close" : "Open"} Tag List
-      </Button>
-      {tagListOpen && <TagList />}
-    </div>
+    </QueryClientProvider>
   )
 }
 
